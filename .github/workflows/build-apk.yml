@@ -1,0 +1,41 @@
+name: Build cGiełda APK
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build and sign APK
+        run: ./build.sh
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cGielda-apk
+          path: dist/cGielda-1.0.apk
+
+      - name: Publish/update "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: cGiełda (latest build)
+          body: Automatycznie zbudowany APK z najnowszego commita (${{ github.sha }}).
+          make_latest: true
+          files: dist/cGielda-1.0.apk

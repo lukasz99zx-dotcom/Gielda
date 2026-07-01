@@ -38,6 +38,10 @@ public class MainActivity extends Activity {
     private EditText rateInput;
     private EditText commissionInput;
 
+    private LinearLayout advancedRow;
+    private TextView advancedToggle;
+    private boolean advancedVisible = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -79,14 +83,16 @@ public class MainActivity extends Activity {
         return title;
     }
 
-    private EditText makeInput(String hint, int inputType) {
+    private EditText makeCompactInput(String hint, int inputType, float weight) {
         EditText et = new EditText(this);
         et.setHint(hint);
         et.setInputType(inputType);
-        et.setPadding(dp(8), dp(8), dp(8), dp(8));
+        et.setSingleLine(true);
+        et.setTextSize(13);
+        et.setPadding(dp(6), dp(6), dp(6), dp(6));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(dp(12), dp(4), dp(12), dp(4));
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, weight);
+        lp.setMargins(dp(2), dp(2), dp(2), dp(2));
         et.setLayoutParams(lp);
         return et;
     }
@@ -94,25 +100,54 @@ public class MainActivity extends Activity {
     private View buildForm() {
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(0, dp(8), 0, dp(8));
+        form.setPadding(dp(8), dp(6), dp(8), dp(4));
         form.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        nameInput = makeInput("Nazwa papieru", InputType.TYPE_CLASS_TEXT);
-        qtyInput = makeInput("Ilość akcji", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        priceInput = makeInput("Cena akcji", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        rateInput = makeInput("Kurs (domyślnie 1)", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        commissionInput = makeInput("Prowizja % (domyślnie 0.39)", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        LinearLayout mainRow = new LinearLayout(this);
+        mainRow.setOrientation(LinearLayout.HORIZONTAL);
+        mainRow.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        form.addView(nameInput);
-        form.addView(qtyInput);
-        form.addView(priceInput);
-        form.addView(rateInput);
-        form.addView(commissionInput);
+        nameInput = makeCompactInput("Nazwa", InputType.TYPE_CLASS_TEXT, 2f);
+        qtyInput = makeCompactInput("Ilość", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL, 1f);
+        priceInput = makeCompactInput("Cena", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL, 1f);
+
+        mainRow.addView(nameInput);
+        mainRow.addView(qtyInput);
+        mainRow.addView(priceInput);
+        form.addView(mainRow);
+
+        advancedToggle = new TextView(this);
+        advancedToggle.setTextColor(Color.parseColor("#1565C0"));
+        advancedToggle.setTextSize(12);
+        advancedToggle.setPadding(dp(2), dp(4), dp(2), dp(4));
+        advancedToggle.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        advancedToggle.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleAdvanced();
+            }
+        });
+        form.addView(advancedToggle);
+
+        advancedRow = new LinearLayout(this);
+        advancedRow.setOrientation(LinearLayout.HORIZONTAL);
+        advancedRow.setVisibility(View.GONE);
+        advancedRow.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        rateInput = makeCompactInput("Kurs (domyślnie 1)", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL, 1f);
+        commissionInput = makeCompactInput("Prowizja % (domyślnie 0.39)", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL, 1f);
+        advancedRow.addView(rateInput);
+        advancedRow.addView(commissionInput);
+        form.addView(advancedRow);
+        setAdvancedToggleText();
 
         LinearLayout buttonsRow = new LinearLayout(this);
         buttonsRow.setOrientation(LinearLayout.HORIZONTAL);
-        buttonsRow.setPadding(dp(12), dp(8), dp(12), dp(4));
+        buttonsRow.setPadding(0, dp(6), 0, dp(2));
         buttonsRow.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -151,6 +186,18 @@ public class MainActivity extends Activity {
         form.addView(buttonsRow);
 
         return form;
+    }
+
+    private void toggleAdvanced() {
+        advancedVisible = !advancedVisible;
+        advancedRow.setVisibility(advancedVisible ? View.VISIBLE : View.GONE);
+        setAdvancedToggleText();
+    }
+
+    private void setAdvancedToggleText() {
+        advancedToggle.setText(advancedVisible
+                ? "Kurs / prowizja (ukryj)"
+                : "Kurs / prowizja (pokaż)");
     }
 
     private View buildListHeader() {
@@ -264,18 +311,11 @@ public class MainActivity extends Activity {
 
     private void refreshList() {
         adapter.notifyDataSetChanged();
-        double total = 0;
-        for (Transaction t : transactions) {
-            if (t.type == Transaction.TYPE_SELL) {
-                total += t.amount;
-            } else {
-                total -= t.amount;
-            }
-        }
-        String sign = total >= 0 ? "+" : "-";
-        String text = sign + TransactionAdapter.formatMoney(Math.abs(total)) + " zł";
+        double result = PnlCalculator.realizedProfitLoss(transactions);
+        String sign = result >= 0 ? "+" : "-";
+        String text = sign + TransactionAdapter.formatMoney(Math.abs(result)) + " zł";
         summaryView.setText(text);
-        summaryView.setTextColor(total >= 0 ? Color.parseColor("#2E7D32") : Color.parseColor("#C62828"));
+        summaryView.setTextColor(result >= 0 ? Color.parseColor("#2E7D32") : Color.parseColor("#C62828"));
     }
 
     private void saveTransactions() {
