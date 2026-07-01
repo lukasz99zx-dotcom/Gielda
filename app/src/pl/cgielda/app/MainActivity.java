@@ -891,12 +891,25 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
         }
         String[] lines = data.split("\n");
         List<Transaction> loaded = new ArrayList<Transaction>();
+        boolean nameNeedsMigration = false;
         for (String line : lines) {
             Transaction t = Transaction.fromLine(line);
             if (t != null) {
+                if (t.name != null) {
+                    String upper = t.name.trim().toUpperCase(Locale.getDefault());
+                    if (!upper.equals(t.name)) {
+                        t.name = upper;
+                        nameNeedsMigration = true;
+                    }
+                }
                 loaded.add(t);
             }
         }
         transactions.addAll(loaded);
+        if (nameNeedsMigration) {
+            // Older data saved before names were forced to uppercase - persist
+            // the normalized form so matching (PnlCalculator) stays correct.
+            saveTransactions();
+        }
     }
 }

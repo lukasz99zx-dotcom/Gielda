@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 
@@ -62,6 +63,15 @@ public class PnlCalculator {
     }
 
     /**
+     * Buys and sells of the "same" paper must match even if the name was
+     * typed/stored with different casing or surrounding whitespace at
+     * different times (e.g. data saved before uppercase input was enforced).
+     */
+    private static String normalizeName(String name) {
+        return name == null ? "" : name.trim().toUpperCase(Locale.US);
+    }
+
+    /**
      * Runs FIFO-style lot matching over chronologically-ordered transactions,
      * where lotOrder decides which available lot of the same paper a sale
      * picks first (oldest, cheapest, ...). A sale can only ever match lots
@@ -77,10 +87,11 @@ public class PnlCalculator {
                 continue;
             }
 
-            PriorityQueue<Lot> lots = lotsByName.get(t.name);
+            String key = normalizeName(t.name);
+            PriorityQueue<Lot> lots = lotsByName.get(key);
             if (lots == null) {
                 lots = new PriorityQueue<Lot>(11, lotOrder);
-                lotsByName.put(t.name, lots);
+                lotsByName.put(key, lots);
             }
 
             if (t.type == Transaction.TYPE_BUY) {
