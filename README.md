@@ -24,7 +24,8 @@ ręcznie wprowadzanych transakcji kupna/sprzedaży.
   wkleja tekst i odtwarza z niego listę transakcji — wygodne do przeniesienia
   danych między urządzeniami albo ręcznej kopii zapasowej.
 - Pasek podsumowania przyklejony do dołu ekranu, trzy liczby:
-  - **Zrealizowany wynik** (duża liczba) — faktyczny zysk/strata metodą FIFO.
+  - **Zrealizowany wynik** (duża liczba) — faktyczny zysk/strata licząc każdą
+    sprzedaż jako dopasowaną do najtańszego dostępnego w danym momencie zakupu.
   - **Saldo gotówkowe** — to samo co zrealizowany wynik, ale liczone jako
     różnica kwot (uzyskana ze sprzedaży minus wydana na zakup) tylko dla
     dopasowanych (rozliczonych) transakcji — nie uwzględnia kosztu akcji
@@ -37,14 +38,19 @@ ręcznie wprowadzanych transakcji kupna/sprzedaży.
 Kwota transakcji liczona jest jako `ilość × cena × kurs`, powiększona o prowizję
 przy kupnie, pomniejszona o prowizję przy sprzedaży.
 
-**Zrealizowany wynik** liczony jest metodą FIFO osobno dla każdego papieru:
-każda sprzedaż jest dopasowywana do najstarszych jeszcze nierozliczonych
-zakupów tego samego papieru, a zysk/strata to różnica między kwotą uzyskaną ze
-sprzedaży a kosztem zakupu dopasowanych akcji. Akcje, które wciąż są w
+**Zrealizowany wynik** liczony jest osobno dla każdego papieru: każda sprzedaż
+jest dopasowywana do **najtańszego** jeszcze nierozliczonego zakupu tego
+samego papieru spośród wszystkich zakupów zaksięgowanych do tego momentu
+(niezależnie od kolejności, w jakiej zostały wpisane) — a zysk/strata to
+różnica między kwotą uzyskaną ze sprzedaży a kosztem zakupu dopasowanych
+akcji. Np. przy zakupach po 220/230/240 zł i sprzedaży po 222 zł, sprzedaż
+zawsze dopasowywana jest do zakupu po 220 zł (dając zysk), niezależnie od tego,
+w jakiej kolejności te zakupy zostały dodane. Akcje, które wciąż są w
 portfelu, nie są liczone jako strata — liczy się tylko to, co faktycznie
-zostało zrealizowane. Kolejność transakcji na liście (możesz ją zmieniać
-przeciąganiem) nie wpływa na to wyliczenie — do FIFO zawsze używana jest
-rzeczywista chronologia dodania transakcji.
+zostało zrealizowane. Nadal obowiązuje reguła, że sprzedaż może dopasować się
+tylko do zakupów wprowadzonych *wcześniej w czasie* (na podstawie rzeczywistej
+chronologii, nie kolejności na liście, którą możesz swobodnie zmieniać
+przeciąganiem) — nie można "sprzedać" akcji z przyszłego zakupu.
 
 ### Format eksportu/importu
 

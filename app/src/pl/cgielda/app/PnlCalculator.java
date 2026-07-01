@@ -1,18 +1,17 @@
 package pl.cgielda.app;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 
 public class PnlCalculator {
 
     public static class Result {
-        /** Realized profit/loss (FIFO cost basis per paper), ignoring unsold holdings. */
+        /** Realized profit/loss (cheapest-lot-first cost basis per paper), ignoring unsold holdings. */
         public final double realizedPnl;
         /**
          * Cash actually received minus cash actually spent, counting only the
@@ -40,10 +39,21 @@ public class PnlCalculator {
         }
     }
 
+    private static final Comparator<Lot> CHEAPEST_FIRST = new Comparator<Lot>() {
+        @Override
+        public int compare(Lot a, Lot b) {
+            return Double.compare(a.unitCost, b.unitCost);
+        }
+    };
+
     /**
-     * Order of the input list does not matter (the user can freely reorder
-     * transactions for display purposes) - transactions are always processed
-     * in chronological (timestamp) order for FIFO matching to be meaningful.
+     * Order of the input list does not matter for display (the user can freely
+     * reorder transactions) - transactions are always processed in chronological
+     * (timestamp) order, since a sale can only be matched against shares bought
+     * earlier. Within the shares available at that point, a sale is matched
+     * against the CHEAPEST lot(s) first (regardless of purchase order), so the
+     * realized result reflects the most favorable, price-based matching rather
+     * than an arbitrary entry order.
      */
     public static Result compute(List<Transaction> transactions) {
         List<Transaction> chronological = new ArrayList<Transaction>(transactions);
@@ -54,7 +64,7 @@ public class PnlCalculator {
             }
         });
 
-        Map<String, Deque<Lot>> lotsByName = new HashMap<String, Deque<Lot>>();
+        Map<String, PriorityQueue<Lot>> lotsByName = new HashMap<String, PriorityQueue<Lot>>();
         double realized = 0;
         double netCashFlow = 0;
 
@@ -63,19 +73,19 @@ public class PnlCalculator {
                 continue;
             }
 
-            Deque<Lot> lots = lotsByName.get(t.name);
+            PriorityQueue<Lot> lots = lotsByName.get(t.name);
             if (lots == null) {
-                lots = new ArrayDeque<Lot>();
+                lots = new PriorityQueue<Lot>(11, CHEAPEST_FIRST);
                 lotsByName.put(t.name, lots);
             }
 
             if (t.type == Transaction.TYPE_BUY) {
-                lots.addLast(new Lot(t.quantity, t.amount / t.quantity));
+                lots.add(new Lot(t.quantity, t.amount / t.quantity));
             } else {
                 double sellQty = t.quantity;
                 double unitProceeds = t.amount / t.quantity;
                 while (sellQty > 0.0000001 && !lots.isEmpty()) {
-                    Lot lot = lots.peekFirst();
+                    Lot lot = lots.peek();
                     double matched = Math.min(sellQty, lot.quantity);
                     double matchedReceived = matched * unitProceeds;
                     double matchedSpent = matched * lot.unitCost;
@@ -84,7 +94,7 @@ public class PnlCalculator {
                     lot.quantity -= matched;
                     sellQty -= matched;
                     if (lot.quantity <= 0.0000001) {
-                        lots.pollFirst();
+                        lots.poll();
                     }
                 }
                 if (sellQty > 0.0000001) {
@@ -97,7 +107,7 @@ public class PnlCalculator {
         }
 
         double openCostBasis = 0;
-        for (Deque<Lot> lots : lotsByName.values()) {
+        for (PriorityQueue<Lot> lots : lotsByName.values()) {
             for (Lot lot : lots) {
                 openCostBasis += lot.quantity * lot.unitCost;
             }
