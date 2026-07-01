@@ -24,12 +24,15 @@ ręcznie wprowadzanych transakcji kupna/sprzedaży.
   wkleja tekst i odtwarza z niego listę transakcji — wygodne do przeniesienia
   danych między urządzeniami albo ręcznej kopii zapasowej.
 - Pasek podsumowania przyklejony do dołu ekranu, trzy liczby:
-  - **Zrealizowany wynik** (duża liczba) — faktyczny zysk/strata licząc każdą
-    sprzedaż jako dopasowaną do najtańszego dostępnego w danym momencie zakupu.
-  - **Saldo gotówkowe** — to samo co zrealizowany wynik, ale liczone jako
-    różnica kwot (uzyskana ze sprzedaży minus wydana na zakup) tylko dla
-    dopasowanych (rozliczonych) transakcji — nie uwzględnia kosztu akcji
-    wciąż trzymanych w portfelu.
+  - **Zrealizowany wynik** (duża liczba) — faktyczny zysk/strata metodą FIFO:
+    każda sprzedaż dopasowywana jest do **najstarszego** jeszcze nierozliczonego
+    zakupu tego samego papieru.
+  - **Saldo gotówkowe** — różnica kwot (uzyskana ze sprzedaży minus wydana na
+    zakup) tylko dla dopasowanych (rozliczonych) transakcji, ale licząc każdą
+    sprzedaż jako dopasowaną do **najtańszego** dostępnego w danym momencie
+    zakupu (niezależnie od kolejności, w jakiej zakupy zostały wpisane) — nie
+    uwzględnia kosztu akcji wciąż trzymanych w portfelu. Może się różnić od
+    zrealizowanego wyniku, bo używa innej metody dopasowania.
   - **Zainwestowano obecnie** (mała czcionka) — ile pieniędzy tkwi w akcjach
     wciąż trzymanych w portfelu (jeszcze niesprzedanych).
 - Dane zapisywane lokalnie na urządzeniu, przeżywają zamknięcie aplikacji
@@ -38,19 +41,24 @@ ręcznie wprowadzanych transakcji kupna/sprzedaży.
 Kwota transakcji liczona jest jako `ilość × cena × kurs`, powiększona o prowizję
 przy kupnie, pomniejszona o prowizję przy sprzedaży.
 
-**Zrealizowany wynik** liczony jest osobno dla każdego papieru: każda sprzedaż
-jest dopasowywana do **najtańszego** jeszcze nierozliczonego zakupu tego
-samego papieru spośród wszystkich zakupów zaksięgowanych do tego momentu
-(niezależnie od kolejności, w jakiej zostały wpisane) — a zysk/strata to
-różnica między kwotą uzyskaną ze sprzedaży a kosztem zakupu dopasowanych
-akcji. Np. przy zakupach po 220/230/240 zł i sprzedaży po 222 zł, sprzedaż
-zawsze dopasowywana jest do zakupu po 220 zł (dając zysk), niezależnie od tego,
-w jakiej kolejności te zakupy zostały dodane. Akcje, które wciąż są w
-portfelu, nie są liczone jako strata — liczy się tylko to, co faktycznie
-zostało zrealizowane. Nadal obowiązuje reguła, że sprzedaż może dopasować się
-tylko do zakupów wprowadzonych *wcześniej w czasie* (na podstawie rzeczywistej
-chronologii, nie kolejności na liście, którą możesz swobodnie zmieniać
-przeciąganiem) — nie można "sprzedać" akcji z przyszłego zakupu.
+Oba wskaźniki liczone są osobno dla każdego papieru i niezależnie od siebie,
+każdy własną metodą dopasowania sprzedaży do wcześniejszych zakupów:
+
+- **Zrealizowany wynik** — metoda FIFO: sprzedaż dopasowywana jest do
+  **najstarszego** jeszcze nierozliczonego zakupu tego samego papieru
+  (w kolejności, w jakiej zakupy faktycznie zostały dodane w czasie).
+- **Saldo gotówkowe** — metoda "najtańszy pierwszy": sprzedaż dopasowywana
+  jest do **najtańszego** dostępnego w danym momencie zakupu tego samego
+  papieru, niezależnie od kolejności, w jakiej zakupy zostały wpisane. Np. przy
+  zakupach po 220 zł i 230 zł (w dowolnej kolejności) i sprzedaży 6 sztuk po
+  224 zł, gdy dostępnych jest tylko 5 sztuk po 220 zł, saldo liczy to jako
+  sprzedaż 5 sztuk po 220 zł i 1 sztuki po 230 zł.
+
+W obu przypadkach sprzedaż może dopasować się tylko do zakupów wprowadzonych
+*wcześniej w czasie* (na podstawie rzeczywistej chronologii, nie kolejności na
+liście, którą możesz swobodnie zmieniać przeciąganiem) — nie można "sprzedać"
+akcji z przyszłego zakupu. Akcje, które wciąż są w portfelu, nigdy nie są
+liczone jako strata w żadnym z tych dwóch wskaźników.
 
 ### Format eksportu/importu
 
