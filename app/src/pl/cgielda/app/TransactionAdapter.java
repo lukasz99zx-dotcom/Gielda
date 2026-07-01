@@ -11,6 +11,8 @@ import android.widget.BaseAdapter;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.List;
 import java.util.Locale;
 
@@ -107,7 +109,8 @@ public class TransactionAdapter extends BaseAdapter {
         badge.addView(typeView);
         card.addView(badge);
 
-        card.addView(cell(t.name, 3f, Colors.TEXT_PRIMARY, true, Gravity.LEFT | Gravity.CENTER_VERTICAL));
+        String displayName = t.name == null ? "" : t.name.toUpperCase(Locale.getDefault());
+        card.addView(cell(displayName, 3f, Colors.TEXT_PRIMARY, true, Gravity.LEFT | Gravity.CENTER_VERTICAL));
         card.addView(cell(formatNumber(t.quantity), 2f, Colors.TEXT_SECONDARY, false, Gravity.RIGHT | Gravity.CENTER_VERTICAL));
         card.addView(cell(formatMoney(t.price), 2f, Colors.TEXT_SECONDARY, false, Gravity.RIGHT | Gravity.CENTER_VERTICAL));
         card.addView(cell(formatMoney(t.amount), 3f, typeColor, true, Gravity.RIGHT | Gravity.CENTER_VERTICAL));
@@ -185,14 +188,38 @@ public class TransactionAdapter extends BaseAdapter {
         }
     }
 
+    private static final DecimalFormatSymbols DISPLAY_SYMBOLS = new DecimalFormatSymbols(Locale.US);
+    static {
+        DISPLAY_SYMBOLS.setGroupingSeparator(' ');
+        DISPLAY_SYMBOLS.setDecimalSeparator('.');
+    }
+    private static final DecimalFormat MONEY_FORMAT = new DecimalFormat("#,##0.00", DISPLAY_SYMBOLS);
+    private static final DecimalFormat WHOLE_NUMBER_FORMAT = new DecimalFormat("#,##0", DISPLAY_SYMBOLS);
+    private static final DecimalFormat DECIMAL_NUMBER_FORMAT = new DecimalFormat("#,##0.####", DISPLAY_SYMBOLS);
+
+    /** For display only (thousands-separated) - not meant to be parsed back. */
     static String formatNumber(double value) {
         if (value == Math.floor(value)) {
-            return String.format(Locale.getDefault(), "%.0f", value);
+            return WHOLE_NUMBER_FORMAT.format(value);
         }
-        return String.format(Locale.getDefault(), "%.4f", value);
+        return DECIMAL_NUMBER_FORMAT.format(value);
     }
 
+    /** For display only (thousands-separated) - not meant to be parsed back. */
     static String formatMoney(double value) {
-        return String.format(Locale.getDefault(), "%.2f", value);
+        return MONEY_FORMAT.format(value);
+    }
+
+    /** Plain (no grouping), safe to pre-fill into an editable field and re-parse. */
+    static String plainNumber(double value) {
+        if (value == Math.floor(value)) {
+            return String.format(Locale.US, "%.0f", value);
+        }
+        return String.format(Locale.US, "%.4f", value);
+    }
+
+    /** Plain (no grouping), safe to pre-fill into an editable field and re-parse. */
+    static String plainMoney(double value) {
+        return String.format(Locale.US, "%.2f", value);
     }
 }

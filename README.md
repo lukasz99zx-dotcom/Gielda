@@ -8,17 +8,27 @@ ręcznie wprowadzanych transakcji kupna/sprzedaży.
 - Kompaktowy formularz dodawania transakcji (nazwa, ilość, cena w jednej linii),
   z opcjonalnym kursem (domyślnie `1`) i prowizją banku (domyślnie `0.39%`)
   schowanymi pod ikonką ▾ w tym samym wierszu.
+- Pole nazwy podpowiada wcześniej wpisane nazwy papierów (unikalne, jak
+  select-box) i wymusza WIELKIE LITERY zarówno przy wpisywaniu, jak i na
+  liście.
 - Lista transakcji na ekranie głównym (najnowsze na górze), każdy wiersz w formie
   karty pokazuje: typ (**K** zielony / **S** czerwony), nazwę papieru, ilość,
-  cenę i wyliczoną kwotę transakcji (z uwzględnieniem prowizji).
-  - **Stuknięcie** w wiersz otwiera edycję transakcji (albo jej usunięcie).
-  - **Przesunięcie w prawo** pokazuje potwierdzenie usunięcia.
+  cenę i wyliczoną kwotę transakcji (z uwzględnieniem prowizji). Kwoty
+  formatowane są z odstępem tysięcy (np. `20 000,00 zł`).
+  - **Stuknięcie** w wiersz otwiera kompaktową edycję transakcji (z podglądem
+    kwoty prowizji na żywo) albo jej usunięcie (czytelny czerwony przycisk 🗑 Usuń).
+  - **Przesunięcie w prawo** pokazuje potwierdzenie usunięcia (też czerwony przycisk z ikoną).
   - **Przytrzymanie** wiersza pozwala przeciągnięciem zmienić jego kolejność na liście.
+- Eksport/import transakcji jako tekst (przyciski ↑/↓ w nagłówku): eksport
+  kopiuje listę do schowka (i pokazuje ją do ręcznego skopiowania), import
+  wkleja tekst i odtwarza z niego listę transakcji — wygodne do przeniesienia
+  danych między urządzeniami albo ręcznej kopii zapasowej.
 - Pasek podsumowania przyklejony do dołu ekranu, trzy liczby:
   - **Zrealizowany wynik** (duża liczba) — faktyczny zysk/strata metodą FIFO.
-  - **Saldo gotówkowe** — suma wpływów ze sprzedaży minus suma wydatków na
-    zakupy ze wszystkich transakcji (czy ogólnie więcej gotówki wydano, czy
-    otrzymano).
+  - **Saldo gotówkowe** — to samo co zrealizowany wynik, ale liczone jako
+    różnica kwot (uzyskana ze sprzedaży minus wydana na zakup) tylko dla
+    dopasowanych (rozliczonych) transakcji — nie uwzględnia kosztu akcji
+    wciąż trzymanych w portfelu.
   - **Zainwestowano obecnie** (mała czcionka) — ile pieniędzy tkwi w akcjach
     wciąż trzymanych w portfelu (jeszcze niesprzedanych).
 - Dane zapisywane lokalnie na urządzeniu, przeżywają zamknięcie aplikacji
@@ -35,6 +45,18 @@ portfelu, nie są liczone jako strata — liczy się tylko to, co faktycznie
 zostało zrealizowane. Kolejność transakcji na liście (możesz ją zmieniać
 przeciąganiem) nie wpływa na to wyliczenie — do FIFO zawsze używana jest
 rzeczywista chronologia dodania transakcji.
+
+### Format eksportu/importu
+
+Eksport tworzy tekst rozdzielany średnikami, jedna transakcja na linię:
+
+```
+TYP;NAZWA;ILOSC;CENA;KURS;PROWIZJA%;DATA
+K;ABC;100;12.50;1;0.39;2026-07-01 10:15:00
+```
+
+Import akceptuje ten sam format (nagłówek jest opcjonalny/pomijany), zamienia
+całą obecną listę transakcji na tę wklejoną — po potwierdzeniu w dialogu.
 
 ## Instalacja
 
@@ -119,10 +141,11 @@ sekretu chroniącego przed podszywaniem się pod aplikację.
 app/
   AndroidManifest.xml
   src/pl/cgielda/app/
-    MainActivity.java       - ekran główny, formularz, lista, pasek podsumowania, dialogi edycji
+    MainActivity.java       - ekran główny, formularz, lista, pasek podsumowania, dialogi edycji/importu/eksportu
     Transaction.java        - model transakcji i logika wyliczania kwoty transakcji
     PnlCalculator.java      - wynik FIFO, saldo gotówkowe, kapitał obecnie zainwestowany
-    TransactionAdapter.java - karty wierszy listy, gest przesunięcia do usunięcia
+    TransactionAdapter.java - karty wierszy listy, gest przesunięcia do usunięcia, formatowanie liczb
+    TransactionCsv.java     - eksport/import transakcji jako tekst
     Colors.java             - wspólna paleta kolorów
 tools/IconGen.java           - generator ikony aplikacji (uruchamiany przez build.sh)
 signing/cgielda-release.keystore - stabilny klucz podpisujący (patrz sekcja wyżej)

@@ -14,7 +14,11 @@ public class PnlCalculator {
     public static class Result {
         /** Realized profit/loss (FIFO cost basis per paper), ignoring unsold holdings. */
         public final double realizedPnl;
-        /** Sum of sell amounts minus sum of buy amounts across all transactions. */
+        /**
+         * Cash actually received minus cash actually spent, counting only the
+         * matched (closed) portion of trades - shares still held are excluded,
+         * so this tracks realizedPnl by construction.
+         */
         public final double netCashFlow;
         /** Cost basis (at purchase) of shares still held, i.e. money currently tied up. */
         public final double openCostBasis;
@@ -59,8 +63,6 @@ public class PnlCalculator {
                 continue;
             }
 
-            netCashFlow += (t.type == Transaction.TYPE_SELL) ? t.amount : -t.amount;
-
             Deque<Lot> lots = lotsByName.get(t.name);
             if (lots == null) {
                 lots = new ArrayDeque<Lot>();
@@ -75,7 +77,10 @@ public class PnlCalculator {
                 while (sellQty > 0.0000001 && !lots.isEmpty()) {
                     Lot lot = lots.peekFirst();
                     double matched = Math.min(sellQty, lot.quantity);
-                    realized += matched * (unitProceeds - lot.unitCost);
+                    double matchedReceived = matched * unitProceeds;
+                    double matchedSpent = matched * lot.unitCost;
+                    realized += matchedReceived - matchedSpent;
+                    netCashFlow += matchedReceived - matchedSpent;
                     lot.quantity -= matched;
                     sellQty -= matched;
                     if (lot.quantity <= 0.0000001) {
@@ -86,6 +91,7 @@ public class PnlCalculator {
                     // Sold more than was ever recorded as bought (e.g. missing
                     // history) - count the unmatched part at full proceeds.
                     realized += sellQty * unitProceeds;
+                    netCashFlow += sellQty * unitProceeds;
                 }
             }
         }

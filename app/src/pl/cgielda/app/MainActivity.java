@@ -3,6 +3,7 @@ package pl.cgielda.app;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
@@ -10,26 +11,36 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.InputFilter;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.DragEvent;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public class MainActivity extends Activity implements TransactionAdapter.RowActionListener {
 
     private static final String PREFS_NAME = "cgielda_prefs";
     private static final String KEY_TRANSACTIONS = "transactions";
+    private static final InputFilter[] UPPERCASE_FILTERS = {new InputFilter.AllCaps()};
 
     private final List<Transaction> transactions = new ArrayList<Transaction>();
     private TransactionAdapter adapter;
@@ -40,7 +51,7 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
     private TextView summarySecondary;
     private TextView summaryInvested;
 
-    private EditText nameInput;
+    private AutoCompleteTextView nameInput;
     private EditText qtyInput;
     private EditText priceInput;
     private EditText rateInput;
@@ -114,7 +125,50 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
         title.setTextColor(Color.WHITE);
         header.addView(title);
 
+        LinearLayout spacer = new LinearLayout(this);
+        spacer.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(spacer);
+
+        TextView exportButton = headerIconButton("↑");
+        exportButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showExportDialog();
+            }
+        });
+        header.addView(exportButton);
+
+        TextView importButton = headerIconButton("↓");
+        LinearLayout.LayoutParams importLp = (LinearLayout.LayoutParams) importButton.getLayoutParams();
+        importLp.setMargins(dp(8), 0, 0, 0);
+        header.addView(importButton);
+        importButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showImportDialog();
+            }
+        });
+
         return header;
+    }
+
+    private TextView headerIconButton(String glyph) {
+        TextView btn = new TextView(this);
+        btn.setText(glyph);
+        btn.setTextColor(Color.WHITE);
+        btn.setTypeface(btn.getTypeface(), Typeface.BOLD);
+        btn.setTextSize(18);
+        btn.setGravity(Gravity.CENTER);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(colorWithAlpha(Color.WHITE, 0x33));
+        bg.setShape(GradientDrawable.OVAL);
+        btn.setBackground(bg);
+        btn.setLayoutParams(new LinearLayout.LayoutParams(dp(36), dp(36)));
+        return btn;
+    }
+
+    private int colorWithAlpha(int color, int alpha) {
+        return (color & 0x00FFFFFF) | (alpha << 24);
     }
 
     // ---------- Add-transaction form ----------
@@ -129,6 +183,25 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
         et.setTextColor(Colors.TEXT_PRIMARY);
         et.setPadding(dp(10), dp(8), dp(10), dp(8));
         et.setBackground(fieldBackground());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, weight);
+        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+        et.setLayoutParams(lp);
+        return et;
+    }
+
+    private AutoCompleteTextView makeNameInput(float weight) {
+        AutoCompleteTextView et = new AutoCompleteTextView(this);
+        et.setHint("Nazwa");
+        et.setHintTextColor(Colors.TEXT_MUTED);
+        et.setInputType(InputType.TYPE_CLASS_TEXT);
+        et.setFilters(UPPERCASE_FILTERS);
+        et.setSingleLine(true);
+        et.setTextSize(14);
+        et.setTextColor(Colors.TEXT_PRIMARY);
+        et.setPadding(dp(10), dp(8), dp(10), dp(8));
+        et.setBackground(fieldBackground());
+        et.setThreshold(1);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, weight);
         lp.setMargins(dp(3), dp(3), dp(3), dp(3));
@@ -159,7 +232,7 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
         mainRow.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        nameInput = makeCompactInput("Nazwa", InputType.TYPE_CLASS_TEXT, 2f);
+        nameInput = makeNameInput(2f);
         qtyInput = makeCompactInput("Ilość", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL, 1f);
         priceInput = makeCompactInput("Cena", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL, 1f);
 
@@ -256,6 +329,21 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
         advancedToggle.setText(advancedVisible ? "▴" : "▾");
     }
 
+    private void updateNameSuggestions() {
+        if (nameInput == null) {
+            return;
+        }
+        Set<String> unique = new LinkedHashSet<String>();
+        for (Transaction t : transactions) {
+            if (t.name != null && t.name.length() > 0) {
+                unique.add(t.name.toUpperCase(Locale.getDefault()));
+            }
+        }
+        ArrayAdapter<String> namesAdapter = new ArrayAdapter<String>(
+                this, android.R.layout.simple_dropdown_item_1line, new ArrayList<String>(unique));
+        nameInput.setAdapter(namesAdapter);
+    }
+
     // ---------- Transaction list ----------
 
     private View buildListHeader() {
@@ -348,12 +436,22 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
         showDeleteConfirmDialog(position);
     }
 
+    private void styleDestructiveButton(Button b) {
+        if (b == null) {
+            return;
+        }
+        b.setText("🗑  Usuń");
+        b.setTextColor(Colors.RED);
+        b.setTypeface(b.getTypeface(), Typeface.BOLD);
+        b.setAllCaps(false);
+    }
+
     private void showDeleteConfirmDialog(final int position) {
         if (position < 0 || position >= transactions.size()) {
             return;
         }
         Transaction t = transactions.get(position);
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Usunąć transakcję?")
                 .setMessage(t.name + " - " + TransactionAdapter.formatMoney(t.amount) + " zł")
                 .setPositiveButton("Usuń", new DialogInterface.OnClickListener() {
@@ -379,6 +477,7 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
                     }
                 })
                 .show();
+        styleDestructiveButton(dialog.getButton(DialogInterface.BUTTON_POSITIVE));
     }
 
     private void showEditDialog(final int position) {
@@ -390,19 +489,53 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
         LinearLayout dialogLayout = new LinearLayout(this);
         dialogLayout.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(18);
-        dialogLayout.setPadding(pad, dp(8), pad, 0);
+        dialogLayout.setPadding(pad, dp(6), pad, 0);
 
-        final EditText editName = editField("Nazwa papieru", existing.name);
-        final EditText editQty = editField("Ilość", TransactionAdapter.formatNumber(existing.quantity));
-        final EditText editPrice = editField("Cena", TransactionAdapter.formatMoney(existing.price));
-        final EditText editRate = editField("Kurs", TransactionAdapter.formatMoney(existing.rate));
-        final EditText editCommission = editField("Prowizja %", TransactionAdapter.formatMoney(existing.commissionPercent));
-
+        final AutoCompleteTextView editName = makeNameInput(1f);
+        editName.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        editName.setText(existing.name);
         dialogLayout.addView(editName);
-        dialogLayout.addView(editQty);
-        dialogLayout.addView(editPrice);
-        dialogLayout.addView(editRate);
-        dialogLayout.addView(editCommission);
+
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        final EditText editQty = dialogField("Ilość", TransactionAdapter.plainNumber(existing.quantity), 1f);
+        final EditText editPrice = dialogField("Cena", TransactionAdapter.plainMoney(existing.price), 1f);
+        row1.addView(editQty);
+        row1.addView(editPrice);
+        dialogLayout.addView(row1);
+
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        final EditText editRate = dialogField("Kurs", TransactionAdapter.plainMoney(existing.rate), 1f);
+        final EditText editCommission = dialogField("Prowizja %", TransactionAdapter.plainMoney(existing.commissionPercent), 1f);
+        row2.addView(editRate);
+        row2.addView(editCommission);
+        dialogLayout.addView(row2);
+
+        final TextView commissionInfo = new TextView(this);
+        commissionInfo.setTextColor(Colors.TEXT_MUTED);
+        commissionInfo.setTextSize(12);
+        commissionInfo.setPadding(0, dp(4), 0, 0);
+        dialogLayout.addView(commissionInfo);
+
+        TextWatcher recompute = new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                updateCommissionPreview(commissionInfo, editQty, editPrice, editRate, editCommission);
+            }
+        };
+        editQty.addTextChangedListener(recompute);
+        editPrice.addTextChangedListener(recompute);
+        editRate.addTextChangedListener(recompute);
+        editCommission.addTextChangedListener(recompute);
+        updateCommissionPreview(commissionInfo, editQty, editPrice, editRate, editCommission);
 
         LinearLayout typeRow = new LinearLayout(this);
         typeRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -436,7 +569,7 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
         typeRow.addView(sellToggle);
         dialogLayout.addView(typeRow);
 
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Edytuj transakcję")
                 .setView(dialogLayout)
                 .setPositiveButton("Zapisz", new DialogInterface.OnClickListener() {
@@ -458,15 +591,35 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
                 })
                 .setNegativeButton("Anuluj", null)
                 .show();
+        styleDestructiveButton(dialog.getButton(DialogInterface.BUTTON_NEUTRAL));
     }
 
-    private EditText editField(String hint, String value) {
+    private double parseOrZero(EditText field) {
+        try {
+            return Double.parseDouble(field.getText().toString().trim().replace(',', '.'));
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private void updateCommissionPreview(TextView commissionInfo, EditText editQty, EditText editPrice,
+                                          EditText editRate, EditText editCommission) {
+        double qty = parseOrZero(editQty);
+        double price = parseOrZero(editPrice);
+        double rate = parseOrZero(editRate);
+        double commissionPct = parseOrZero(editCommission);
+        double base = qty * price * rate;
+        double commissionAmount = base * (commissionPct / 100.0);
+        commissionInfo.setText("Prowizja: " + TransactionAdapter.formatMoney(commissionAmount) + " zł");
+    }
+
+    private EditText dialogField(String hint, String value, float weight) {
         EditText et = new EditText(this);
         et.setHint(hint);
         et.setText(value);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, dp(4), 0, dp(4));
+        et.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight);
+        lp.setMargins(dp(4), dp(4), dp(4), dp(4));
         et.setLayoutParams(lp);
         return et;
     }
@@ -474,7 +627,7 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
     private void saveEditedTransaction(int position, Transaction existing, EditText editName,
                                         EditText editQty, EditText editPrice, EditText editRate,
                                         EditText editCommission, char type) {
-        String name = editName.getText().toString().trim();
+        String name = editName.getText().toString().trim().toUpperCase(Locale.getDefault());
         if (name.length() == 0) {
             Toast.makeText(this, "Podaj nazwę papieru", Toast.LENGTH_SHORT).show();
             return;
@@ -502,6 +655,92 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
             saveTransactions();
             refreshList();
         }
+    }
+
+    // ---------- Export / Import ----------
+
+    private void showExportDialog() {
+        if (transactions.isEmpty()) {
+            Toast.makeText(this, "Brak transakcji do wyeksportowania", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String csv = TransactionCsv.export(transactions);
+
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText("cGiełda export", csv));
+        }
+
+        EditText textView = new EditText(this);
+        textView.setText(csv);
+        textView.setTextIsSelectable(true);
+        textView.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        textView.setTextSize(12);
+        textView.setPadding(dp(12), dp(12), dp(12), dp(12));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(textView);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Eksport (skopiowano do schowka)")
+                .setView(scroll)
+                .setPositiveButton("OK", null)
+                .show();
+    }
+
+    private void showImportDialog() {
+        final EditText input = new EditText(this);
+        input.setHint("Wklej tu wyeksportowany tekst");
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setMinLines(6);
+        input.setPadding(dp(16), dp(12), dp(16), dp(12));
+
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null && clipboard.hasPrimaryClip() && clipboard.getPrimaryClip().getItemCount() > 0) {
+            CharSequence clip = clipboard.getPrimaryClip().getItemAt(0).getText();
+            if (clip != null && clip.toString().contains(";")) {
+                input.setText(clip.toString());
+            }
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Importuj transakcje")
+                .setView(input)
+                .setPositiveButton("Importuj", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        handleImport(input.getText().toString());
+                    }
+                })
+                .setNegativeButton("Anuluj", null)
+                .show();
+    }
+
+    private void handleImport(String text) {
+        TransactionCsv.ParseResult result = TransactionCsv.parse(text);
+        if (result.transactions.isEmpty()) {
+            Toast.makeText(this, "Nie znaleziono żadnych transakcji w tekście", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String message = "Znaleziono " + result.transactions.size() + " transakcji."
+                + (result.skippedLines > 0 ? " Pominięto " + result.skippedLines + " nieprawidłowych linii." : "")
+                + "\n\nTo zastąpi obecną listę (" + transactions.size() + " pozycji). Kontynuować?";
+        new AlertDialog.Builder(this)
+                .setTitle("Potwierdź import")
+                .setMessage(message)
+                .setPositiveButton("Zastąp listę", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        transactions.clear();
+                        transactions.addAll(result.transactions);
+                        saveTransactions();
+                        refreshList();
+                        Toast.makeText(MainActivity.this, "Zaimportowano " + result.transactions.size()
+                                + " transakcji", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Anuluj", null)
+                .show();
     }
 
     // ---------- Summary bar ----------
@@ -551,7 +790,7 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
     // ---------- Add transaction ----------
 
     private void addTransaction(char type) {
-        String name = nameInput.getText().toString().trim();
+        String name = nameInput.getText().toString().trim().toUpperCase(Locale.getDefault());
         String qtyStr = qtyInput.getText().toString().trim();
         String priceStr = priceInput.getText().toString().trim();
         String rateStr = rateInput.getText().toString().trim();
@@ -611,6 +850,7 @@ public class MainActivity extends Activity implements TransactionAdapter.RowActi
 
     private void refreshList() {
         adapter.notifyDataSetChanged();
+        updateNameSuggestions();
         PnlCalculator.Result result = PnlCalculator.compute(transactions);
 
         summaryPrimary.setText(signedMoney(result.realizedPnl));
