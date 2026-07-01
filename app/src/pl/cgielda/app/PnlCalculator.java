@@ -1,12 +1,30 @@
 package pl.cgielda.app;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class PnlCalculator {
+
+    public static class Result {
+        /** Realized profit/loss (FIFO cost basis per paper), ignoring unsold holdings. */
+        public final double realizedPnl;
+        /** Sum of sell amounts minus sum of buy amounts across all transactions. */
+        public final double netCashFlow;
+        /** Cost basis (at purchase) of shares still held, i.e. money currently tied up. */
+        public final double openCostBasis;
+
+        Result(double realizedPnl, double netCashFlow, double openCostBasis) {
+            this.realizedPnl = realizedPnl;
+            this.netCashFlow = netCashFlow;
+            this.openCostBasis = openCostBasis;
+        }
+    }
 
     private static class Lot {
         double quantity;
@@ -19,19 +37,30 @@ public class PnlCalculator {
     }
 
     /**
-     * Realized profit/loss (FIFO cost basis per paper), ignoring the cost of
-     * currently held (unsold) shares. transactionsNewestFirst is expected to
-     * be ordered newest-first, as stored by MainActivity.
+     * Order of the input list does not matter (the user can freely reorder
+     * transactions for display purposes) - transactions are always processed
+     * in chronological (timestamp) order for FIFO matching to be meaningful.
      */
-    public static double realizedProfitLoss(List<Transaction> transactionsNewestFirst) {
+    public static Result compute(List<Transaction> transactions) {
+        List<Transaction> chronological = new ArrayList<Transaction>(transactions);
+        Collections.sort(chronological, new Comparator<Transaction>() {
+            @Override
+            public int compare(Transaction a, Transaction b) {
+                return Long.valueOf(a.timestamp).compareTo(b.timestamp);
+            }
+        });
+
         Map<String, Deque<Lot>> lotsByName = new HashMap<String, Deque<Lot>>();
         double realized = 0;
+        double netCashFlow = 0;
 
-        for (int i = transactionsNewestFirst.size() - 1; i >= 0; i--) {
-            Transaction t = transactionsNewestFirst.get(i);
+        for (Transaction t : chronological) {
             if (t.quantity <= 0) {
                 continue;
             }
+
+            netCashFlow += (t.type == Transaction.TYPE_SELL) ? t.amount : -t.amount;
+
             Deque<Lot> lots = lotsByName.get(t.name);
             if (lots == null) {
                 lots = new ArrayDeque<Lot>();
@@ -60,6 +89,14 @@ public class PnlCalculator {
                 }
             }
         }
-        return realized;
+
+        double openCostBasis = 0;
+        for (Deque<Lot> lots : lotsByName.values()) {
+            for (Lot lot : lots) {
+                openCostBasis += lot.quantity * lot.unitCost;
+            }
+        }
+
+        return new Result(realized, netCashFlow, openCostBasis);
     }
 }

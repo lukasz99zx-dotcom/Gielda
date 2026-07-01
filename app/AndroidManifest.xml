@@ -1,19 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="pl.cgielda.app"
-    android:versionCode="1"
-    android:versionName="1.0">
+    android:versionCode="__VERSION_CODE__"
+    android:versionName="__VERSION_NAME__">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="29" />
 
     <application
         android:label="cGiełda"
+        android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:hardwareAccelerated="true">
         <activity
             android:name="pl.cgielda.app.MainActivity"
             android:exported="true"
-            android:label="cGiełda">
+            android:theme="@android:style/Theme.Holo.Light.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -10,13 +10,31 @@
 #   - REAndroid/APKEditor (+ ARSCLib) to assemble the manifest/resources/APK
 #   - the JDK's own jarsigner to sign the APK (JAR/v1 signature scheme)
 #
-# Requires: java (JDK 17+), javac, jarsigner, keytool, curl, unzip.
+# The APK is always signed with the committed signing/cgielda-release.keystore
+# so that every build - local or CI - produces the same signing identity.
+# Without this, Android refuses to install an update over an existing copy
+# ("app not installed - conflicts with an existing package") because it
+# treats differently-signed builds as different apps.
+#
+# Requires: java (JDK 17+), javac, jarsigner, keytool, curl, unzip, git.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="$ROOT/.build"
 LIBS="$WORK/libs"
 mkdir -p "$WORK" "$LIBS"
+
+KEYSTORE="$ROOT/signing/cgielda-release.keystore"
+KEYSTORE_PASS="cgielda123"
+KEY_ALIAS="cgielda"
+if [ ! -f "$KEYSTORE" ]; then
+  echo "ERROR: missing $KEYSTORE - this must stay committed so all builds share one signing identity." >&2
+  exit 1
+fi
+
+VERSION_CODE="$(cd "$ROOT" && git rev-list --count HEAD 2>/dev/null || echo 1)"
+VERSION_NAME="1.0"
+echo "== Version: versionCode=$VERSION_CODE versionName=$VERSION_NAME =="
 
 echo "== Fetching build tools (first run only) =="
 
@@ -54,33 +72,36 @@ echo "== Converting to classes.dex =="
 java -cp "$WORK/dx-classes" com.android.dx.command.Main --dex \
   --output="$WORK/classes.dex" "$WORK/classes"
 
+echo "== Generating app icon =="
+mkdir -p "$WORK/icon-classes"
+javac -d "$WORK/icon-classes" "$ROOT/tools/IconGen.java"
+ICON_RES="$WORK/icon-res"
+rm -rf "$ICON_RES"
+java -cp "$WORK/icon-classes" IconGen "$ICON_RES"
+
 echo "== Assembling unsigned APK =="
 PROJ="$WORK/apkproj"
 rm -rf "$PROJ"
 mkdir -p "$PROJ/dex" "$PROJ/resources/package_1/res/values"
 cp "$WORK/classes.dex" "$PROJ/dex/classes.dex"
-cp "$ROOT/app/AndroidManifest.xml" "$PROJ/AndroidManifest.xml"
+sed -e "s/__VERSION_CODE__/$VERSION_CODE/" -e "s/__VERSION_NAME__/$VERSION_NAME/" \
+  "$ROOT/app/AndroidManifest.xml" > "$PROJ/AndroidManifest.xml"
 cat > "$PROJ/resources/package_1/res/values/public.xml" << 'EOF'
 <?xml version="1.0" encoding="utf-8"?>
 <resources package="pl.cgielda.app" id="0x7f">
+  <public type="mipmap" name="ic_launcher" id="0x7f010000" />
 </resources>
 EOF
+cp -r "$ICON_RES"/mipmap-* "$PROJ/resources/package_1/res/"
 
 mkdir -p "$ROOT/dist"
 java -jar "$LIBS/APKEditor.jar" b -t xml -i "$PROJ" \
   -o "$WORK/cGielda-unsigned.apk" -framework "$LIBS/android.jar" -f
 
 echo "== Signing APK =="
-if [ ! -f "$LIBS/cgielda.keystore" ]; then
-  keytool -genkeypair -keystore "$LIBS/cgielda.keystore" -alias cgielda \
-    -keyalg RSA -keysize 2048 -validity 20000 \
-    -storepass cgielda123 -keypass cgielda123 \
-    -dname "CN=cGielda, OU=cGielda, O=cGielda, L=Warsaw, ST=Mazowieckie, C=PL"
-fi
-
 cp "$WORK/cGielda-unsigned.apk" "$ROOT/dist/cGielda-1.0.apk"
 jarsigner -sigalg SHA256withRSA -digestalg SHA-256 \
-  -keystore "$LIBS/cgielda.keystore" -storepass cgielda123 -keypass cgielda123 \
-  "$ROOT/dist/cGielda-1.0.apk" cgielda
+  -keystore "$KEYSTORE" -storepass "$KEYSTORE_PASS" -keypass "$KEYSTORE_PASS" \
+  "$ROOT/dist/cGielda-1.0.apk" "$KEY_ALIAS"
 
-echo "== Done: dist/cGielda-1.0.apk =="
+echo "== Done: dist/cGielda-1.0.apk (versionCode=$VERSION_CODE) =="
